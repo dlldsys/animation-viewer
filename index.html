@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animation Viewer - 3D 动画查看器</title>
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: #0e0e12;
+      color: #c8ccd4;
+      display: flex;
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 200px;
+      min-width: 200px;
+      background: #13141a;
+      border-right: 1px solid #1e1f28;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      user-select: none;
+    }
+    .sidebar-logo {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid #1e1f28;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-logo svg { width: 28px; height: 28px; }
+    .sidebar-logo span {
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6c8cff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #787c8a;
+      transition: all .15s;
+      text-decoration: none;
+    }
+    .nav-item:hover { background: #1c1d26; color: #c8ccd4; }
+    .nav-item.active {
+      background: rgba(108,140,255,.12);
+      color: #6c8cff;
+    }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: .7; }
+    .nav-item.active svg { opacity: 1; }
+    .nav-item .label { flex: 1; }
+
+    .sidebar-footer {
+      padding: 12px 8px;
+      border-top: 1px solid #1e1f28;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sidebar-footer a {
+      display: block;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #4a4e5a;
+      text-decoration: none;
+      border-radius: 6px;
+    }
+    .sidebar-footer a:hover { color: #787c8a; background: #1c1d26; }
+
+    /* ===== MAIN ===== */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      background: #13141a;
+      border-bottom: 1px solid #1e1f28;
+      min-height: 52px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-left .title-area h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e8ecf4;
+    }
+    .header-left .title-area p {
+      font-size: 12px;
+      color: #5a5e6a;
+      margin-top: 2px;
+    }
+    .format-badges {
+      display: flex;
+      gap: 6px;
+      margin-left: 8px;
+    }
+    .format-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #1c1d26;
+      color: #6c8cff;
+      border: 1px solid #252730;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .lang-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #1c1d26;
+      border: 1px solid #252730;
+      color: #787c8a;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .lang-btn:hover { color: #c8ccd4; }
+
+    /* ===== VIEWPORT ===== */
+    .viewport-wrap {
+      flex: 1;
+      position: relative;
+      background: #dadce0;
+      overflow: hidden;
+    }
+    #three-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ===== EMPTY STATE (overlay) ===== */
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+      transition: opacity .35s;
+    }
+    .empty-state.hidden { opacity: 0; }
+    .empty-state svg {
+      width: 64px; height: 64px;
+      opacity: .25;
+      margin-bottom: 16px;
+    }
+    .empty-state p {
+      font-size: 14px;
+      color: #9a9ca0;
+    }
+
+    /* ===== UPLOAD ZONE (floating) ===== */
+    .upload-zone {
+      position: absolute;
+      left: 50%;
+      bottom: 80px;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background: rgba(19,20,26,.85);
+      border: 1px dashed #3a3e4a;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all .2s;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+    }
+    .upload-zone:hover {
+      border-color: #6c8cff;
+      background: rgba(108,140,255,.08);
+    }
+    .upload-zone.dragover {
+      border-color: #6c8cff;
+      background: rgba(108,140,255,.15);
+      transform: translateX(-50%) scale(1.03);
+    }
+    .upload-zone svg { width: 20px; height: 20px; opacity: .6; }
+    .upload-zone span { font-size: 13px; color: #787c8a; }
+    .upload-zone:hover span { color: #c8ccd4; }
+
+    /* ===== TOOLBAR ===== */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 24px;
+      background: #13141a;
+      border-top: 1px solid #1e1f28;
+      flex-wrap: wrap;
+    }
+    .tool-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #5a5e6a;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .tool-btn:hover:not(:disabled) {
+      background: #1c1d26;
+      color: #c8ccd4;
+    }
+    .tool-btn.active {
+      background: rgba(108,140,255,.12);
+      color: #6c8cff;
+      border-color: rgba(108,140,255,.2);
+    }
+    .tool-btn:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+    }
+    .tool-btn svg { width: 16px; height: 16px; }
+    .toolbar-spacer { flex: 1; }
+    .file-name {
+      font-size: 12px;
+      color: #3a3e4a;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-name.has-file { color: #787c8a; }
+
+    /* ===== ANIMATION CONTROLS (below toolbar) ===== */
+    .anim-bar {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 24px;
+      background: #0e0e12;
+      border-top: 1px solid #1e1f28;
+    }
+    .anim-bar.visible { display: flex; }
+    .anim-bar .play-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: #6c8cff;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .anim-bar .play-btn:hover { background: #5570e0; }
+    .anim-bar .play-btn svg { width: 14px; height: 14px; }
+    .anim-bar .progress-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .anim-bar .progress-wrap input[type=range] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: #252730;
+      outline: none;
+      cursor: pointer;
+    }
+    .anim-bar .progress-wrap input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #6c8cff;
+      border: 2px solid #13141a;
+      cursor: pointer;
+    }
+    .anim-bar .progress-wrap input[type=range]::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #6c8cff;
+      border: 2px solid #13141a;
+      cursor: pointer;
+    }
+    .anim-bar .time-label {
+      font-size: 12px;
+      color: #5a5e6a;
+      font-variant-numeric: tabular-nums;
+      min-width: 80px;
+      text-align: right;
+    }
+    .anim-bar .loop-btn {
+      background: transparent;
+      border: 1px solid #252730;
+      color: #5a5e6a;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .anim-bar .loop-btn.active { color: #6c8cff; border-color: rgba(108,140,255,.3); }
+
+    /* ===== FILE INPUT (hidden) ===== */
+    #file-input { display: none; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .header { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+      .header-left .title-area h1 { font-size: 14px; }
+      .format-badges { display: none; }
+      .upload-zone { bottom: 60px; padding: 8px 14px; }
+      .toolbar { padding: 8px 12px; gap: 2px; }
+      .tool-btn { padding: 5px 8px; font-size: 11px; }
+      .tool-btn svg { width: 14px; height: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 28 28" fill="none">
+        <rect x="2" y="2" width="10" height="10" rx="2" fill="#6c8cff" opacity=".6"/>
+        <rect x="16" y="2" width="10" height="10" rx="2" fill="#a855f7" opacity=".6"/>
+        <rect x="2" y="16" width="10" height="10" rx="2" fill="#6c8cff" opacity=".9"/>
+        <rect x="16" y="16" width="10" height="10" rx="2" fill="#a855f7"/>
+      </svg>
+      <span>AnimView</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="#"><svg viewBox="0 0 18 18" fill="currentColor"><path d="M3 3h5v5H3V3zm7 0h5v5h-5V3zM3 10h5v5H3v-5zm7 0h5v5h-5v-5z"/></svg><span class="label">动作工作室</span></a>
+      <a class="nav-item active" href="#"><svg viewBox="0 0 18 18" fill="currentColor"><path d="M9 1.5L2 6v6l7 4.5 7-4.5V6L9 1.5zm0 1.73l5 3.12v3.3l-5 3.12-5-3.12v-3.3l5-3.12z"/></svg><span class="label">动画查看器</span></a>
+      <a class="nav-item" href="#"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="5.5"/><path d="M9 3.5V9l4 2"/></svg><span class="label">动画重定向</span></a>
+      <a class="nav-item" href="#"><svg viewBox="0 0 18 18" fill="currentColor"><path d="M14 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 12H4V4h10v10z"/><rect x="6" y="6" width="2" height="2" fill="currentColor"/><rect x="10" y="6" width="2" height="2" fill="currentColor"/><rect x="6" y="10" width="6" height="2" fill="currentColor"/></svg><span class="label">媒体库</span></a>
+      <a class="nav-item" href="#"><svg viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="5" r="2.5"/><circle cx="5" cy="13" r="2.5"/><circle cx="13" cy="13" r="2.5"/><path d="M9 7.5v3M6.5 11l4.5 2"/></svg><span class="label">Avatars</span></a>
+      <a class="nav-item" href="#"><svg viewBox="0 0 18 18" fill="currentColor"><path d="M9 1C4.58 1 1 4.58 1 9s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/><path d="M9 5v4l3 2"/></svg><span class="label">开发者中心</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#">举报</a>
+      <a href="#">联系我们</a>
+      <a href="#">服务条款</a>
+      <a href="#">隐私政策</a>
+      <a href="#" style="color:#2a2e3a;font-size:11px;padding-top:8px;">© 2026 AnimView</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="title-area">
+          <h1>动画查看器</h1>
+          <p>上传 3D 动作文件以预览骨骼动画。</p>
+        </div>
+        <div class="format-badges">
+          <span class="format-badge">.bvh</span>
+          <span class="format-badge">.fbx</span>
+          <span class="format-badge">.glb</span>
+          <span class="format-badge">.npz</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="lang-btn" onclick="toggleLang()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          <span id="lang-label">ZH</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Viewport -->
+    <div class="viewport-wrap" id="viewport">
+      <canvas id="three-canvas"></canvas>
+
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#3a3e4a" stroke-width="1.5">
+          <rect x="8" y="12" width="48" height="40" rx="4" stroke="currentColor"/>
+          <circle cx="24" cy="28" r="6" stroke="currentColor"/>
+          <path d="M10 46l14-12 8 8 8-6 14 10" stroke="currentColor" stroke-linecap="round"/>
+        </svg>
+        <p>请选择要预览的动画文件</p>
+      </div>
+
+      <!-- Upload zone -->
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M10 3v10M5 8l5-5 5 5M3 14v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/>
+        </svg>
+        <span>点击或拖拽上传</span>
+      </div>
+    </div>
+
+    <!-- Animation bar -->
+    <div class="anim-bar" id="anim-bar">
+      <button class="play-btn" id="play-btn" onclick="togglePlay()">
+        <svg viewBox="0 0 14 14" fill="currentColor" id="play-icon"><path d="M3 1.5v11l9-5.5z"/></svg>
+      </button>
+      <div class="progress-wrap">
+        <input type="range" id="progress-slider" min="0" max="100" value="0" step="0.1"
+               oninput="onProgressInput(this.value)" onchange="onProgressChange()" />
+        <span class="time-label" id="time-label">00:00 / 00:00</span>
+      </div>
+      <button class="loop-btn" id="loop-btn" onclick="toggleLoop()">循环</button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+      <button class="tool-btn" id="btn-mesh" disabled onclick="toggleMesh()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="5" r="2.5"/><path d="M4 14c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5"/></svg>
+        角色网格
+      </button>
+      <button class="tool-btn" id="btn-wireframe" disabled onclick="toggleWireframe()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M3 6h10M6 3v10"/></svg>
+        网格线框
+      </button>
+      <button class="tool-btn active" id="btn-axes" onclick="toggleAxes()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12" opacity=".5"/><path d="M8 2l2 3M8 2l-2 3" stroke="#ff5e5e"/><path d="M2 8l3-2M2 8l3 2" stroke="#5eff5e"/></svg>
+        坐标轴
+      </button>
+      <button class="tool-btn active" id="btn-grid" onclick="toggleGrid()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 2h12v12H2z"/><path d="M2 8h12M8 2v12" opacity=".4"/></svg>
+        地面网格
+      </button>
+      <button class="tool-btn" id="btn-follow" disabled onclick="toggleFollow()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="5" r="2"/><path d="M5 13c0-1.5 1.3-2.5 3-2.5s3 1 3 2.5"/><path d="M2 14l3-4 2 1 3-3 2 2 2-3" opacity=".6"/></svg>
+        跟随角色
+      </button>
+      <button class="tool-btn" onclick="resetView()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 8l6-6 6 6M8 2v12"/></svg>
+        重置视角
+      </button>
+
+      <span class="toolbar-spacer"></span>
+      <span class="file-name" id="file-name"></span>
+    </div>
+
+    <input type="file" id="file-input" accept=".glb,.gltf,.fbx,.bvh,.npz" onchange="handleFileSelect(event)" />
+  </div>
+
+  <!-- ===== THREE.JS ===== -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+  import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+  // ============================================================
+  //  GLOBALS
+  // ============================================================
+  const canvas = document.getElementById('three-canvas');
+  const viewport = document.getElementById('viewport');
+
+  let renderer, scene, camera, controls;
+  let mixer = null;
+  let clock = new THREE.Clock();
+  let animAction = null;
+  let currentModel = null;
+  let currentAnimations = [];
+  let isPlaying = false;
+  let isLooping = true;
+  let duration = 0;
+  let isSeeking = false;
+
+  // Toggles
+  let showMesh = true;
+  let showWireframe = false;
+  let showAxes = true;
+  let showGrid = true;
+  let followCharacter = false;
+  let axesHelper = null;
+  let gridHelper = null;
+
+  // Character parts tracking
+  let meshObjects = [];
+  let skeletonObjects = [];
+  let characterRoot = null;
+  let modelInitialPos = new THREE.Vector3();
+  let modelInitialQuat = new THREE.Quaternion();
+  let modelPivot = null;  // fixed container that holds the model at origin
+
+  // Window resize debounce
+  let resizeTimeout = null;
+
+  function init() {
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdadce0);
+
+    // Camera
+    camera = new THREE.PerspectiveCamera(45, viewport.clientWidth / viewport.clientHeight, 0.1, 100);
+    camera.position.set(0, 1.2, 4);
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.8;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Controls
+    controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+    controls.update();
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0x404060, 0.5);
+    scene.add(ambient);
+
+    const hemi = new THREE.HemisphereLight(0x8888ff, 0x444422, 0.6);
+    scene.add(hemi);
+
+    const dirLight = new THREE.DirectionalLight(0xffeedd, 2.0);
+    dirLight.position.set(5, 8, 4);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(2048, 2048);
+    scene.add(dirLight);
+
+    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+    fillLight.position.set(-3, 2, -4);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x6688ff, 0.4);
+    rimLight.position.set(0, -1, -5);
+    scene.add(rimLight);
+
+    // Axes helper
+    axesHelper = new THREE.AxesHelper(1.5);
+    scene.add(axesHelper);
+
+    // Small sphere at origin for visual reference
+    const originSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xff4444 })
+    );
+    originSphere.position.set(0, 0, 0);
+    scene.add(originSphere);
+
+    // Ground grid
+    gridHelper = new THREE.GridHelper(8, 12, 0xb0b2b8, 0xc4c6cc);
+    gridHelper.position.y = -0.01;
+    scene.add(gridHelper);
+
+    // Resize observer
+    const ro = new ResizeObserver(() => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(onResize, 100);
+    });
+    ro.observe(viewport);
+
+    animate();
+  }
+
+  function onResize() {
+    const w = viewport.clientWidth;
+    const h = viewport.clientHeight;
+    if (w === 0 || h === 0) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+
+  // ============================================================
+  //  LOADING — GLB 和 FBX 拆成独立路径
+  // ============================================================
+  function loadFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const url = URL.createObjectURL(file);
+
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-name').classList.add('has-file');
+    clearModel();
+    document.getElementById('empty-state').classList.add('hidden');
+
+    const loadingMgr = new THREE.LoadingManager();
+
+    if (ext === 'glb' || ext === 'gltf') {
+      const gltfLoader = new GLTFLoader(loadingMgr);
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+      gltfLoader.setDRACOLoader(draco);
+      gltfLoader.load(url, (gltf) => {
+        setupGLB(gltf.scene, gltf.animations || [], url, file.name);
+      }, undefined, (err) => {
+        console.error('GLB load error:', err);
+        alert('加载 GLB 失败: ' + err.message);
+      });
+    } else if (ext === 'fbx') {
+      const fbxLoader = new FBXLoader(loadingMgr);
+      fbxLoader.load(url, (fbx) => {
+        setupFBX(fbx, fbx.animations || [], url, file.name);
+      }, undefined, (err) => {
+        console.error('FBX load error:', err);
+        alert('加载 FBX 失败: ' + err.message);
+      });
+    } else {
+      alert('暂不支持 .' + ext + ' 格式，请使用 .glb / .gltf / .fbx');
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // === Shared helpers ===
+  function cleanModel(model) {
+    model.traverse(child => {
+      if (child.isLight) child.parent?.remove(child);
+      if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+    });
+  }
+
+  function scaleToFit(model, targetSize) {
+    targetSize = targetSize || 3.0;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) model.scale.setScalar(targetSize / maxDim);
+    model.updateMatrixWorld(true);
+  }
+
+  function centerRoot(model) {
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    model.updateMatrixWorld(true);
+  }
+
+  function finalizeModel(model, animations) {
+    currentModel = model;
+    currentAnimations = animations;
+
+    // Wrap in pivot
+    modelPivot = new THREE.Group();
+    modelPivot.position.set(0, 0, 0);
+    modelPivot.add(model);
+    scene.add(modelPivot);
+
+    // Save initial position for drift correction
+    modelInitialPos.copy(model.position);
+    modelInitialQuat.copy(model.quaternion);
+
+    // Track meshes
+    meshObjects = [];
+    skeletonObjects = [];
+    model.traverse(child => {
+      if (child.isMesh) meshObjects.push(child);
+      if (child.isBone) skeletonObjects.push(child);
+    });
+    characterRoot = model;
+
+    setupAnimation(animations);
+
+    document.getElementById('btn-mesh').disabled = false;
+    document.getElementById('btn-wireframe').disabled = false;
+    document.getElementById('btn-follow').disabled = false;
+
+    const animBar = document.getElementById('anim-bar');
+    if (animations.length > 0) animBar.classList.add('visible');
+    else animBar.classList.remove('visible');
+  }
+
+  // === GLB path ===
+  function setupGLB(scene, animations, url, fileName) {
+    cleanModel(scene);
+    scaleToFit(scene);
+    centerRoot(scene);
+    // GLB: 网格自带 bind pose，骨骼位置正确，无需重绑定
+    console.log('GLB centered at origin');
+    finalizeModel(scene, animations);
+    URL.revokeObjectURL(url);
+  }
+
+  // === FBX path — 平移网格不动根节点 ===
+  function setupFBX(fbxScene, animations, url, fileName) {
+    cleanModel(fbxScene);
+
+    // 1. 先计算几何中心（缩放前），这样 offset 和 mesh.position 同空间
+    const preBox = new THREE.Box3().setFromObject(fbxScene);
+    const preCenter = preBox.getCenter(new THREE.Vector3());
+
+    // 2. 平移每个网格到原点，不碰根节点和骨骼
+    const offset = preCenter.clone().negate();
+    fbxScene.traverse(child => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        child.position.x += offset.x;
+        child.position.y += offset.y;
+        child.position.z += offset.z;
+        // 更新 SkinnedMesh 的绑定矩阵
+        if (child.isSkinnedMesh && child.skeleton) {
+          child.bindMatrix.copy(child.matrixWorld);
+          child.bindMatrixInverse.copy(child.bindMatrix).invert();
+        }
+      }
+    });
+    fbxScene.updateMatrixWorld(true);
+
+    // 3. 再缩放
+    scaleToFit(fbxScene);
+
+    console.log('FBX: meshes shifted to origin, root/bones untouched');
+    finalizeModel(fbxScene, animations);
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================
+  //  ANIMATION
+  // ============================================================
+  function setupAnimation(animations) {
+    if (animations.length === 0) return;
+
+    mixer = new THREE.AnimationMixer(currentModel);
+
+    // Strip root motion tracks — remove .position / .rotation / .scale
+    // tracks ONLY for root bones (the skeleton root) and empty groups.
+    // Do NOT strip mesh transform tracks — those are part animation (explode/collapse).
+    let clip = animations[0];
+
+    // Find root bones: bones whose parent is NOT a bone (top of skeleton)
+    const rootBoneNames = new Set();
+    function findRootBones(obj) {
+      if (obj.isBone && (!obj.parent || !obj.parent.isBone)) {
+        rootBoneNames.add(obj.name);
+      }
+      obj.children?.forEach(c => findRootBones(c));
+    }
+    if (currentModel) findRootBones(currentModel);
+
+    // Find empty groups (no mesh descendants) that are direct scene children
+    function hasMeshDescendant(obj) {
+      if (obj.isMesh || obj.isSkinnedMesh) return true;
+      return obj.children?.some(c => hasMeshDescendant(c)) ?? false;
+    }
+    const emptyGroupNames = new Set();
+    if (currentModel) {
+      currentModel.children.forEach(c => {
+        if (!hasMeshDescendant(c)) emptyGroupNames.add(c.name);
+      });
+    }
+
+    // Nodes to strip: root bones + empty groups
+    const stripNodes = new Set();
+    rootBoneNames.forEach(n => stripNodes.add(n));
+    emptyGroupNames.forEach(n => stripNodes.add(n));
+
+    const filteredTracks = clip.tracks.filter(t => {
+      const nodeName = t.name.split('.')[0];
+      const prop = t.name.split('.')[1];
+      if (stripNodes.has(nodeName) && 
+          (prop === 'position' || prop === 'rotation' || prop === 'scale' || prop === 'quaternion')) {
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredTracks.length < clip.tracks.length) {
+      const strippedCount = clip.tracks.length - filteredTracks.length;
+      console.log(`Stripped ${strippedCount} root motion track(s) from "${clip.name}"`);
+      clip = new THREE.AnimationClip(clip.name, clip.duration, filteredTracks);
+    }
+
+    duration = clip.duration;
+    animAction = mixer.clipAction(clip);
+    animAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+    animAction.clampWhenFinished = true;
+    animAction.play();
+    animAction.paused = true;  // 不自动播放 — 模型保持在 bind pose
+    isPlaying = false;
+    updatePlayIcon();
+
+    // Reset progress
+    document.getElementById('progress-slider').max = duration;
+    document.getElementById('progress-slider').value = 0;
+    updateTimeLabel(0, duration);
+  }
+
+  window.togglePlay = function() {
+    if (!mixer || !animAction) return;
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      animAction.paused = false;
+    } else {
+      animAction.paused = true;
+    }
+    updatePlayIcon();
+  }
+
+  function updatePlayIcon() {
+    const icon = document.getElementById('play-icon');
+    if (isPlaying) {
+      icon.innerHTML = '<rect x="2" y="1.5" width="3.5" height="11" rx=".8"/><rect x="8.5" y="1.5" width="3.5" height="11" rx=".8"/>';
+    } else {
+      icon.innerHTML = '<path d="M3 1.5v11l9-5.5z"/>';
+    }
+  }
+
+  window.toggleLoop = function() {
+    isLooping = !isLooping;
+    document.getElementById('loop-btn').classList.toggle('active');
+    if (animAction) {
+      animAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+    }
+  }
+
+  window.onProgressInput = function(value) {
+    isSeeking = true;
+    if (mixer && animAction && duration > 0) {
+      const t = parseFloat(value);
+      animAction.time = t;
+      mixer.update(0);
+      updateTimeLabel(t, duration);
+    }
+  }
+
+  window.onProgressChange = function() {
+    isSeeking = false;
+  }
+
+  function updateTimeLabel(current, total) {
+    const fmt = (s) => {
+      if (!s || !isFinite(s)) return '00:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    };
+    document.getElementById('time-label').textContent = `${fmt(current)} / ${fmt(total)}`;
+  }
+
+  // ============================================================
+  //  TOGGLES
+  // ============================================================
+  window.toggleMesh = function() {
+    showMesh = !showMesh;
+    document.getElementById('btn-mesh').classList.toggle('active');
+    meshObjects.forEach(m => { m.visible = showMesh; });
+    updateSkeletonHelper();
+  };
+
+  window.toggleWireframe = function() {
+    showWireframe = !showWireframe;
+    document.getElementById('btn-wireframe').classList.toggle('active');
+    meshObjects.forEach(m => {
+      if (Array.isArray(m.material)) {
+        m.material.forEach(mat => { mat.wireframe = showWireframe; });
+      } else if (m.material) {
+        m.material.wireframe = showWireframe;
+      }
+    });
+  };
+
+  window.toggleAxes = function() {
+    showAxes = !showAxes;
+    document.getElementById('btn-axes').classList.toggle('active');
+    if (axesHelper) axesHelper.visible = showAxes;
+  };
+
+  window.toggleGrid = function() {
+    showGrid = !showGrid;
+    document.getElementById('btn-grid').classList.toggle('active');
+    if (gridHelper) gridHelper.visible = showGrid;
+  };
+
+  window.toggleFollow = function() {
+    followCharacter = !followCharacter;
+    document.getElementById('btn-follow').classList.toggle('active');
+  };
+
+  // ============================================================
+  //  FILE HANDLING (drag & drop + click)
+  // ============================================================
+  window.handleFileSelect = function(evt) {
+    const file = evt.target.files[0];
+    if (file) loadFile(file);
+    evt.target.value = '';
+  };
+
+  // Drag & drop
+  const uploadZone = document.getElementById('upload-zone');
+
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+  });
+
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  // Also support full-page drop
+  document.addEventListener('dragover', (e) => {
+    if (e.target.closest('.upload-zone')) return;
+    e.preventDefault();
+  });
+  document.addEventListener('drop', (e) => {
+    if (e.target.closest('.upload-zone')) return;
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && /\.(glb|gltf|fbx|bvh|npz)$/i.test(file.name)) {
+      loadFile(file);
+    }
+  });
+
+  // ============================================================
+  //  CAMERA FIT — straight front view, model on ground plane
+  // ============================================================
+  function fitCameraToModel(model) {
+    if (!model) return;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim < 0.001) return;
+
+    const fov = camera.fov * (Math.PI / 180);
+    // distance so model fills ~55% of viewport height
+    const dist = maxDim / (2 * Math.tan(fov / 2) * 0.55);
+
+    // Camera directly in front (Z+ axis), looking at model vertical center
+    const lookY = center.y;  // center of model bounding box
+    controls.target.set(0, lookY, 0);
+    camera.position.set(0, lookY, dist);
+    controls.update();
+  }
+
+  // ============================================================
+  //  LANGUAGE TOGGLE
+  // ============================================================
+  window.toggleLang = function() {
+    const label = document.getElementById('lang-label');
+    label.textContent = label.textContent === 'ZH' ? 'EN' : 'ZH';
+  };
+
+  let skeletonHelper = null;
+
+  function updateSkeletonHelper() {
+    // Remove old helper
+    if (skeletonHelper) {
+      scene.remove(skeletonHelper);
+      skeletonHelper = null;
+    }
+    // Create new helper if bones exist and mesh is hidden
+    if (!showMesh && currentModel) {
+      // Find the armature/bone root
+      currentModel.traverse(child => {
+        if (child.isBone && !skeletonHelper) {
+          skeletonHelper = new THREE.SkeletonHelper(currentModel);
+          skeletonHelper.visible = true;
+          scene.add(skeletonHelper);
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  //  KEYBOARD SHORTCUTS
+  // ============================================================
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Space') {
+      e.preventDefault();
+      // Don't toggle if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      togglePlay();
+    }
+    if (e.key === 'r' || e.key === 'R') {
+      toggleLoop();
+    }
+  });
+
+  // ============================================================
+  //  RESET VIEW
+  // ============================================================
+  window.resetView = function() {
+    controls.target.set(0, 0, 0);
+    camera.position.set(0, 1.2, 4);
+    controls.update();
+  };
+  function clearModel() {
+    if (mixer) {
+      mixer.stopAllAction();
+      mixer = null;
+    }
+    animAction = null;
+    isPlaying = false;
+    duration = 0;
+
+    if (currentModel) {
+      // Remove model from pivot first
+      if (modelPivot) {
+        modelPivot.remove(currentModel);
+        scene.remove(modelPivot);
+      }
+      // Dispose geometry/materials
+      currentModel.traverse(child => {
+        if (child.isMesh) {
+          child.geometry?.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material?.dispose();
+          }
+        }
+      });
+      currentModel = null;
+    }
+    if (modelPivot) {
+      modelPivot = null;
+    }
+    meshObjects = [];
+    skeletonObjects = [];
+    characterRoot = null;
+
+    if (skeletonHelper) {
+      scene.remove(skeletonHelper);
+      skeletonHelper = null;
+    }
+
+    document.getElementById('btn-mesh').disabled = true;
+    document.getElementById('btn-wireframe').disabled = true;
+    document.getElementById('btn-follow').disabled = true;
+    document.getElementById('anim-bar').classList.remove('visible');
+    document.getElementById('file-name').textContent = '';
+    document.getElementById('file-name').classList.remove('has-file');
+
+    // Reset camera
+    controls.target.set(0, 0, 0);
+    camera.position.set(0, 1.2, 4);
+    controls.update();
+  }
+
+  // ============================================================
+  //  ANIMATION LOOP
+  // ============================================================
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+
+    if (mixer && !isSeeking) {
+      mixer.update(delta * (isPlaying ? 1 : 0));
+
+      // === DRIFT CORRECTION ===
+      // Even after stripping root motion tracks, some GLB files may still
+      // have residual drift (e.g. animation drives the root via IK solvers
+      // or multiple animation layers). This safety net resets the model's
+      // local position back to the saved initial state every frame.
+      if (currentModel && modelPivot) {
+        // Only correct if NOT in follow mode
+        if (!followCharacter) {
+          currentModel.position.lerp(modelInitialPos, 0.15);
+          // If close enough, snap exactly
+          if (currentModel.position.distanceTo(modelInitialPos) < 0.001) {
+            currentModel.position.copy(modelInitialPos);
+          }
+        }
+
+        // Update pivot world matrix so OrbitControls target is correct
+        modelPivot.updateMatrixWorld(true);
+      }
+
+      // Update progress
+      if (animAction && duration > 0) {
+        const t = animAction.time;
+        document.getElementById('progress-slider').value = t;
+        updateTimeLabel(t, duration);
+
+        // If finished and not looping
+        if (!isLooping && t >= duration - 0.01) {
+          isPlaying = false;
+          updatePlayIcon();
+        }
+      }
+    }
+
+    // Follow character: orbit camera follows model XZ position
+    if (followCharacter && currentModel && modelPivot) {
+      const worldPos = new THREE.Vector3();
+      currentModel.getWorldPosition(worldPos);
+      // Slowly track the target
+      controls.target.x += (worldPos.x - controls.target.x) * 0.02;
+      controls.target.z += (worldPos.z - controls.target.z) * 0.02;
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  // ============================================================
+  //  START
+  // ============================================================
+  init();
+  toggleLoop(); // default loop active
+  document.getElementById('loop-btn').classList.add('active');
+
+  console.log('Animation Viewer ready — drag a .glb/.fbx file to view');
+  </script>
+</body>
+</html>
