@@ -2,6 +2,8 @@
 
 Motifect 风格的 3D 动画查看器，支持 GLB/GLTF/FBX 格式的骨骼动画预览。
 
+🔗 **在线预览**: [https://dlldsys.github.io/animation-viewer/](https://dlldsys.github.io/animation-viewer/)
+
 ## 使用方式
 
 ### 方式一：本地 HTTP 服务器（推荐）
